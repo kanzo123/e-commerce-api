@@ -74,3 +74,60 @@ Content-Type: application/json
   "email": "bob@example.com",
   "password": "مممممممممممممممممممممممممممممممممممممممم"
 }
+
+### 10. Login OK -> 200 + Set-Cookie header (needs Sara from test 2)
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "sara@example.com",
+  "password": "secret123"
+}
+
+### 11. Capital letters and spaces in the email -> still 200
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "  SARA@Example.com ",
+  "password": "secret123"
+}
+
+### 12. Wrong password -> 401 {"msg":"Invalid credentials"}
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "sara@example.com",
+  "password": "wrong-pass"
+}
+
+### 13. Unknown email -> 401, the SAME message as test 12
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "ghost@example.com",
+  "password": "secret123"
+}
+
+### 14. Empty body -> 400 {"msg":"Please provide email and password"}
+POST {{host}}/api/v1/auth/login
+
+### 15. Injection in email -> 400 (same message)
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": { "$gt": "" },
+  "password": "secret123"
+}
+
+### 16. Injection in password -> 400 (same message)
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "sara@example.com",
+  "password": { "$ne": null }
+}

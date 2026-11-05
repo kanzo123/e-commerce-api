@@ -52,4 +52,9 @@ UserSchema.pre('save', async function () {
   this.password = await bcrypt.hash(this.password, 10);
 });
 
+// 'this.password' exists only if the query used .select('+password')
+UserSchema.methods.comparePassword = function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password)
+}
+
 export default mongoose.model('User', UserSchema);

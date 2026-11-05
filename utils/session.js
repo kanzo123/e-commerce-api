@@ -17,6 +17,11 @@ export function setRefreshCookie(res, token) {
   });
 }
 
+export function clearRefreshCookie(res) {
+  // Must use the same options (especially path) as when the cookie was set
+  res.clearCookie('refreshToken', refreshCookieOptions);
+}
+
 // Starts a new login: refresh token goes into the cookie, access token is returned
 export async function startSession(res, user) {
   setRefreshCookie(res, await issueRefreshToken(user.id));

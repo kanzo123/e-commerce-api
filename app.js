@@ -1,4 +1,5 @@
 import express from 'express'
+import cookieParser from 'cookie-parser'
 import authRouter from './routes/auth.js'
 import notFoundMiddleware from "./middleware/not-found.js";
 import errorHandlerMiddleware from "./middleware/error-handler.js";
@@ -11,6 +12,7 @@ app.use((req, res, next) => {
   req.body ??= {};
   next();
 });
+app.use(cookieParser()); // fills req.cookies from the Cookie header
 
 app.get('/', (req, res) => {
   res.json({ msg: 'E-Commerce API' });

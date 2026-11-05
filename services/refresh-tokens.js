@@ -27,3 +27,12 @@ export async function issueRefreshToken(userId, family = crypto.randomUUID()) {
 
   return token
 }
+
+// Ends the login (all tokens of this family). Safe to call with a bad token.
+export async function revokeRefreshToken(token) {
+  if (typeof token !== 'string' || !token) return;
+  const record = await RefreshToken.findOne({ tokenHash: hashToken(token) })
+  if (record) {
+    await RefreshToken.deleteMany({ family: record.family })
+  }
+};

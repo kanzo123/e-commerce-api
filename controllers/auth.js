@@ -1,7 +1,8 @@
 import User from "../models/User.js";
 import { toUserResponse } from "../utils/user-response.js";
 import { BadRequestError, UnauthenticatedError } from "../errors/index.js";
-import { startSession } from "../utils/session.js";
+import { clearRefreshCookie, startSession } from "../utils/session.js";
+import { revokeRefreshToken } from "../services/refresh-tokens.js";
 
 export async function register(req, res) {
   const { name, email, password } = req.body;
@@ -35,4 +36,10 @@ export async function login(req, res) {
   const accessToken = await startSession(res, user);
 
   res.status(200).json({ user: toUserResponse(user), accessToken })
+}
+
+export async function logout(req, res) {
+  await revokeRefreshToken(req.cookies.refreshToken);
+  clearRefreshCookie(res)
+  res.status(200).json({ msg: 'User logged out' })
 }

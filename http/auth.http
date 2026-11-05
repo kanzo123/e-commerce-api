@@ -1,0 +1,76 @@
+### 1. First user -> 201, role "admin" (only works on an EMPTY users collection)
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin Test",
+  "email": "admin@example.com",
+  "password": "secret123"
+}
+
+
+### 2. Second user, trying to pick the role -> 201, role "user"
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Sara Ali",
+  "email": "sara@example.com",
+  "password": "secret123",
+  "role": "admin"
+}
+
+### 3. Same email again -> 409
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Sara Two",
+  "email": "sara@example.com",
+  "password": "secret123"
+}
+
+### 4. Empty object -> 400, three "Please provide..." messages
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{}
+
+### 5. No body at all -> 400 (same messages as test 4)
+POST {{host}}/api/v1/auth/register
+
+### 6. Bad email and short password -> 400
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Bob Smith",
+  "email": "nope",
+  "password": "abc"
+}
+
+### 7. Broken JSON -> 400 {"msg":"Invalid JSON in request body"}
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+//{ "name": "Bob Smith",
+
+### 8. Object instead of text -> 400 (Mongoose's own message, a bit ugly but safe)
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Bob Smith",
+  "email": { "$gt": "" },
+  "password": "secret123"
+}
+
+### 9. Password over 72 bytes (40 Arabic letters = 80 bytes) -> 400
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Bob Smith",
+  "email": "bob@example.com",
+  "password": "مممممممممممممممممممممممممممممممممممممممم"
+}

@@ -1,0 +1,24 @@
+### 0. Logout first, so there is no cookie
+POST {{host}}/api/v1/auth/logout
+
+### U1. Me without a token -> 401
+GET {{host}}/api/v1/users/me
+
+### U2. Me with a fake token -> 401
+GET {{host}}/api/v1/users/me
+Authorization: Bearer abc.def.ghi
+
+### U3. Me as Sara -> 200, user without password
+GET {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+
+### U4. All users as Sara (normal user) -> 403
+GET {{host}}/api/v1/users
+Authorization: Bearer {{userToken}}
+
+### U5. All users as admin -> 200 with the list and a count
+GET {{host}}/api/v1/users
+Authorization: Bearer {{adminToken}}
+
+### U6. All users with no token -> 401
+GET {{host}}/api/v1/users

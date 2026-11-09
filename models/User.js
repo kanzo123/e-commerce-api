@@ -24,6 +24,9 @@ const UserSchema = new mongoose.Schema({
       validator: (value) => validator.isEmail(value),
       message: 'Please provide a valid email',
     }
+    // required and type are validators, they run on operations like save() and create()
+    // lowercase and trim are setters, they automatically modify the value before it's
+    // stored or used in a query like in findOne({email}).
   },
   password: {
     type: String,
@@ -51,5 +54,10 @@ UserSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
+
+// 'this.password' exists only if the query used .select('+password')
+UserSchema.methods.comparePassword = function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password)
+}
 
 export default mongoose.model('User', UserSchema);

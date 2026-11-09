@@ -74,3 +74,98 @@ Content-Type: application/json
   "email": "bob@example.com",
   "password": "مممممممممممممممممممممممممممممممممممممممم"
 }
+
+
+### 12. Wrong password -> 401 {"msg":"Invalid credentials"}
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "sara@example.com",
+  "password": "wrong-pass"
+}
+
+### 13. Unknown email -> 401, the SAME message as test 12
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "ghost@example.com",
+  "password": "secret123"
+}
+
+### 14. Empty body -> 400 {"msg":"Please provide email and password"}
+POST {{host}}/api/v1/auth/login
+
+### 15. Injection in email -> 400 (same message)
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": { "$gt": "" },
+  "password": "secret123"
+}
+
+### 16. Injection in password -> 400 (same message)
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "sara@example.com",
+  "password": { "$ne": null }
+}
+
+
+
+
+### A. Login as admin -> 200, saves adminToken
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "secret123"
+}
+
+> {%
+    client.global.set('adminToken', response.body.accessToken)
+ %}
+
+### B. Login as Sara -> 200, saves userToken and firstRefresh
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "sara@example.com",
+  "password": "secret123"
+}
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+  const cookie = response.headers.valuesOf('Set-Cookie')[0]
+  client.global.set("firstRefresh", cookie.split(";")[0].split("=")[1]);
+  client.log("firstRefresh = " + client.global.get("firstRefresh"));
+%}
+
+### C. Refresh -> 200 + new accessToken + new cookie (WebStorm sends the cookie itself)
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+    client.global.set('userToken', response.body.accessToken)
+ %}
+
+
+### D. Reuse of the OLD refresh token -> 401 (this also ends that whole login)
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/refresh
+Cookie: refreshToken={{firstRefresh}}
+
+### E. Refresh again -> 401 (the newest token died too)
+POST {{host}}/api/v1/auth/refresh
+
+### F. Refresh with no cookie at all -> 401
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/refresh
+
+### G. Logout -> 200 + cookie cleared (run B first, because E ended the old login)
+POST {{host}}/api/v1/auth/logout

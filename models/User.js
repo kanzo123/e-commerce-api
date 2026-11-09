@@ -24,6 +24,9 @@ const UserSchema = new mongoose.Schema({
       validator: (value) => validator.isEmail(value),
       message: 'Please provide a valid email',
     }
+    // required and type are validators, they run on operations like save() and create()
+    // lowercase and trim are setters, they automatically modify the value before it's
+    // stored or used in a query like in findOne({email}).
   },
   password: {
     type: String,

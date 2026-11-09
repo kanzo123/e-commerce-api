@@ -75,23 +75,6 @@ Content-Type: application/json
   "password": "مممممممممممممممممممممممممممممممممممممممم"
 }
 
-### 10. Login OK -> 200 + Set-Cookie header (needs Sara from test 2)
-POST {{host}}/api/v1/auth/login
-Content-Type: application/json
-
-{
-  "email": "sara@example.com",
-  "password": "secret123"
-}
-
-### 11. Capital letters and spaces in the email -> still 200
-POST {{host}}/api/v1/auth/login
-Content-Type: application/json
-
-{
-  "email": "  SARA@Example.com ",
-  "password": "secret123"
-}
 
 ### 12. Wrong password -> 401 {"msg":"Invalid credentials"}
 POST {{host}}/api/v1/auth/login
@@ -132,9 +115,6 @@ Content-Type: application/json
   "password": { "$ne": null }
 }
 
-### 17. Logout -> 200, and a Set-Cookie header that empties the cookie
-POST {{host}}/api/v1/auth/logout
-
 
 
 
@@ -161,5 +141,31 @@ Content-Type: application/json
 }
 
 > {%
+  client.global.set('userToken', response.body.accessToken)
+  const cookie = response.headers.valuesOf('Set-Cookie')[0]
+  client.global.set("firstRefresh", cookie.split(";")[0].split("=")[1]);
+  client.log("firstRefresh = " + client.global.get("firstRefresh"));
+%}
+
+### C. Refresh -> 200 + new accessToken + new cookie (WebStorm sends the cookie itself)
+POST {{host}}/api/v1/auth/refresh
+
+> {%
     client.global.set('userToken', response.body.accessToken)
  %}
+
+
+### D. Reuse of the OLD refresh token -> 401 (this also ends that whole login)
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/refresh
+Cookie: refreshToken={{firstRefresh}}
+
+### E. Refresh again -> 401 (the newest token died too)
+POST {{host}}/api/v1/auth/refresh
+
+### F. Refresh with no cookie at all -> 401
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/refresh
+
+### G. Logout -> 200 + cookie cleared (run B first, because E ended the old login)
+POST {{host}}/api/v1/auth/logout

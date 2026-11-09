@@ -8,8 +8,8 @@ export async function authenticateUser(req, res, next) {
     throw new UnauthenticatedError('Authentication invalid')
   }
   try {
-    const decoded = verifyAccessToken(token)
-    req.user = { userId: decoded.sub, role: decoded.role }
+    const payload = verifyAccessToken(token)
+    req.user = { userId: payload.sub, role: payload.role }
   } catch (e) {
     throw new UnauthenticatedError('Authentication invalid')
   }

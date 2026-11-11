@@ -129,6 +129,7 @@ Content-Type: application/json
 
 > {%
     client.global.set('adminToken', response.body.accessToken)
+    client.global.set('adminId', response.body.user.id)
  %}
 
 ### B. Login as Sara -> 200, saves userToken and firstRefresh
@@ -142,6 +143,7 @@ Content-Type: application/json
 
 > {%
   client.global.set('userToken', response.body.accessToken)
+  client.global.set('saraId', response.body.user.id)
   const cookie = response.headers.valuesOf('Set-Cookie')[0]
   client.global.set("firstRefresh", cookie.split(";")[0].split("=")[1]);
   client.log("firstRefresh = " + client.global.get("firstRefresh"));

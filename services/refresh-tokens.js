@@ -32,7 +32,7 @@ export async function issueRefreshToken(userId, family = crypto.randomUUID()) {
 }
 
 // Swaps a valid refresh token for a new one. The old one can never be used again.
-export const rotateRefreshToken = async (token) => {
+export async function rotateRefreshToken(token) {
   // This guard comes first because the next line hashes the token.
   if (typeof token !== 'string' || !token) {
     throw new UnauthenticatedError('Invalid refresh token');
@@ -59,6 +59,21 @@ export const rotateRefreshToken = async (token) => {
     await RefreshToken.deleteMany({ family: record.family });
     throw new UnauthenticatedError('Invalid refresh token');
   }
+  // Why do we keep all used tokens in the database?
+  // The following scenario may happen if we just `throw new UnauthenticatedError()`
+  // without deleting family:
+  // A legitimate user just presented an old, already-used token. That means someone
+  // else may be holding the newer rotated token (the attacker). Clearing the victim's
+  // cookie doesn't touch the attacker's token — but deleting the family kills it server-side.
+  // That's the entire point of reuse detection.
+  // ---
+  // Why in logout:
+  // Same reasoning — you want the token dead in the DB, not just removed from the browser. If it leaked,
+  // clearing the cookie does nothing for the attacker's copy.
+  // ---
+  // The guards that delete the family are the ones where a token may exist outside this browser.
+  // The plain "invalid/expired token" guards skip it because there's no evidence of a second holder,
+  // and the TTL will clean up anyway.
 
   const user = await User.findById(record.user);
   if (!user) {
@@ -69,7 +84,7 @@ export const rotateRefreshToken = async (token) => {
   const newToken = await issueRefreshToken(user.id, record.family);
 
   return { user, refreshToken: newToken };
-};
+}
 
 // Ends the login (all tokens of this family). Safe to call with a bad token.
 export async function revokeRefreshToken(token) {
@@ -78,4 +93,4 @@ export async function revokeRefreshToken(token) {
   if (record) {
     await RefreshToken.deleteMany({ family: record.family })
   }
-};
+}

@@ -1,5 +1,5 @@
 import express from 'express'
-import { getAllUsers, getCurrentUser } from "../controllers/users.js";
+import { getAllUsers, getCurrentUser, getSingleUser } from "../controllers/users.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authentication.js";
 
 const router = express.Router();
@@ -9,5 +9,8 @@ router.use(authenticateUser)
 
 router.get('/me', getCurrentUser)
 router.get('/', authorizeRoles('admin'), getAllUsers)
+
+// Must stay AFTER '/me', or Express would read the word "me" as an id
+router.get('/:id', getSingleUser)
 
 export default router;

@@ -59,3 +59,89 @@ Authorization: Bearer {{userToken}}
 ### U14. Sara, a broken id -> 403
 GET {{host}}/api/v1/users/abc
 Authorization: Bearer {{userToken}}
+
+
+
+
+### U15. Name only -> 200
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "Sara Hassan" }
+
+### U16. Email with capitals and spaces -> 200, saved as lowercase without spaces
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "  SARA.New@Example.com " }
+
+### U17. Both fields, back to the original email -> 200 (run right after U16)
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "Sara Ali", "email": "sara@example.com" }
+
+### U18. Nothing to change -> 400 "Please provide name or email"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{}
+
+### U19. Name is an object -> 400 "name must be text"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": { "$gt": "" } }
+
+### U20. Empty name -> 400 "Please provide name"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "" }
+
+### U21. Short name -> 400 "Name must be at least 3 characters"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "ab" }
+
+### U22. Bad email -> 400 "Please provide a valid email"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "nope" }
+
+### U23. Email already used by the admin -> 409 "Duplicate value entered for email..."
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "admin@example.com" }
+
+### U23b. Admin's email with capitals and spaces -> 409 (the clean value is checked)
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "  ADMIN@Example.COM " }
+
+### U24. Sneaking in role and password -> 200, but both are ignored
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "Sara Ali", "role": "admin", "password": "hacked123" }
+
+### U25. No token -> 401
+PATCH {{host}}/api/v1/users/me
+Content-Type: application/json
+
+{ "name": "Sara Ali" }

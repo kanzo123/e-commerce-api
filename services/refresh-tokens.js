@@ -94,3 +94,8 @@ export async function revokeRefreshToken(token) {
     await RefreshToken.deleteMany({ family: record.family })
   }
 }
+
+// Ends every login of one user (all devices)
+export async function revokeAllRefreshTokens(userId) {
+  await RefreshToken.deleteMany({ user: userId });
+}

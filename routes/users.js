@@ -4,6 +4,7 @@ import {
   getCurrentUser,
   getSingleUser,
   updateCurrentUser,
+  updateCurrentUserPassword,
 } from "../controllers/users.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authentication.js";
 
@@ -14,6 +15,7 @@ router.use(authenticateUser)
 
 router.get('/me', getCurrentUser)
 router.patch('/me', updateCurrentUser)
+router.patch('/me/password', updateCurrentUserPassword)
 router.get('/', authorizeRoles('admin'), getAllUsers)
 
 // Must stay AFTER '/me', or Express would read the word "me" as an id

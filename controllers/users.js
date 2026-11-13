@@ -2,6 +2,8 @@ import User from "../models/User.js";
 import { toUserResponse } from "../utils/user-response.js";
 import { BadRequestError, NotFoundError, UnauthenticatedError } from "../errors/index.js";
 import { checkPermissions } from "../utils/check-permissions.js";
+import { revokeAllRefreshTokens } from "../services/refresh-tokens.js";
+import { startSession } from "../utils/session.js";
 
 export async function getAllUsers(req, res) {
   const users = await User.find({});
@@ -72,4 +74,53 @@ export async function updateCurrentUser(req, res) {
   // database write
 
   res.status(200).json({ user: toUserResponse(user) });
+}
+
+export async function updateCurrentUserPassword(req, res) {
+  const { oldPassword, newPassword } = req.body;
+
+  // Only plain text may reach bcrypt and the database
+  if (
+    typeof oldPassword !== 'string' ||
+    typeof newPassword !== 'string' ||
+    !oldPassword ||
+    !newPassword
+  ) {
+    throw new BadRequestError('Please provide oldPassword and newPassword');
+  }
+
+  // The password is hidden by default, so we ask for it here
+  const user = await User.findById(req.user.userId).select('+password');
+  if (!user) {
+    throw new UnauthenticatedError('Authentication invalid');
+  }
+
+  // 400, not 401: a frontend may treat every 401 as "your login expired"
+  if (!(await user.comparePassword(oldPassword))) {
+    throw new BadRequestError('Old password is incorrect');
+  }
+  // We already know oldPassword is the real password, so plain text comparison is enough
+  if (oldPassword === newPassword) {
+    throw new BadRequestError('New password must be different from the old password');
+  }
+
+  // save() runs the schema rules (6 characters minimum, 72 bytes maximum)
+  // AND the pre('save') hook that hashes the password (findByIdAndUpdate can't run hooks)
+  user.password = newPassword;
+  await user.save();
+
+  // Order matters: change the password first. If it was rejected above,
+  // nobody gets logged out.
+  await revokeAllRefreshTokens(user.id); // every device, including this one
+  const accessToken = await startSession(res, user); // this device logs in again
+  // Note: req.cookies.refreshToken is undefined since the browser does not send it to
+  // users route because of path in the cookie options, that's why we delete all refresh
+  // tokens (The thief’s login must stop working) for the current user and start a
+  // new session for the current device instead of:
+  // `
+  // const record = await RefreshToken.findOne({ tokenHash: hashToken(req.cookies.refreshToken) });
+  // await RefreshToken.deleteMany({ user: userId, family: { $ne: record.family } });
+  // `
+
+  res.status(200).json({ msg: 'Password updated', accessToken });
 }

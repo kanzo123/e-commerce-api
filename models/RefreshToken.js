@@ -5,6 +5,7 @@ const RefreshTokenSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
+    index: true, // we delete all tokens of one user (password change)
   },
   // One family per login (one per device). Every token made by rotating it joins the family.
   family: { type: String, required: true, index: true },

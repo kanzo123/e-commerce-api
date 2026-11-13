@@ -10,6 +10,7 @@ const UserSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Please provide name'],
+    // the required validator for a String field is defined to fail for empty strings
     trim: true,
     minlength: [3, 'Name must be at least 3 characters'],
     maxlength: [50, 'Name must be at most 50 characters'],

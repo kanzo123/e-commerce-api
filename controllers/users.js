@@ -1,9 +1,10 @@
 import User from "../models/User.js";
 import { toUserResponse } from "../utils/user-response.js";
-import { BadRequestError, NotFoundError, UnauthenticatedError } from "../errors/index.js";
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthenticatedError } from "../errors/index.js";
 import { checkPermissions } from "../utils/check-permissions.js";
 import { revokeAllRefreshTokens } from "../services/refresh-tokens.js";
 import { startSession } from "../utils/session.js";
+import { ROLES } from "../utils/roles.js";
 
 export async function getAllUsers(req, res) {
   const users = await User.find({});
@@ -123,4 +124,46 @@ export async function updateCurrentUserPassword(req, res) {
   // `
 
   res.status(200).json({ msg: 'Password updated', accessToken });
+}
+
+export async function updateUserRole(req, res) {
+  const { id } = req.params;
+  const { role } = req.body
+
+  if (typeof role !== 'string' || !ROLES.includes(role)) {
+    throw new BadRequestError(`Role must be one of: ${ROLES.join(', ')}`);
+  }
+
+  // Without this self check, An admin could remove their own admin rights by mistake
+  if (req.user.userId === id) {
+    throw new ForbiddenError('You cannot change your own role');
+  }
+
+  // The token can be up to 15 minutes old, so for this sensitive route we ask the database
+  // who is calling. An admin who was demoted a minute ago must not still pass.
+  const actor = await User.findById(req.user.userId)
+  if (!actor || actor.role !== 'admin') {
+    throw new ForbiddenError('You are not allowed to access this route');
+  }
+
+  const target = await User.findById(id)
+  if (!target) {
+    throw new NotFoundError('User not found');
+  }
+
+  // Nobody can change the owner. (The owner changing their own role was already stopped above.)
+  if (target.isOwner) {
+    throw new ForbiddenError("Nobody can change the owner's role");
+  }
+
+  // Making someone an admin, or changing an admin, is for the owner only.
+  // Other admins can still move people between user and manager.
+  if ((role === 'admin' || target.role === 'admin') && !actor.isOwner) {
+    throw new ForbiddenError('Only the owner can make or remove admins')
+  }
+
+  target.role = role;
+  await target.save()
+
+  res.status(200).json({user: toUserResponse(target)})
 }

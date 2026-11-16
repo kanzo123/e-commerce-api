@@ -6,6 +6,18 @@ import { revokeAllRefreshTokens } from "../services/refresh-tokens.js";
 import { startSession } from "../utils/session.js";
 import { ROLES } from "../utils/roles.js";
 
+// For sensitive actions we do not trust the token (it can be 15 minutes old).
+// We ask the database who is calling, and check that this person is still an admin.
+async function loadCurrentAdmin(userId, { withPassword = false } = {}) {
+  const query = User.findById(userId);
+  if (withPassword) query.select('+password');
+  const actor = await query;
+  if (!actor || actor.role !== 'admin') {
+    throw new ForbiddenError('You are not allowed to access this route');
+  }
+  return actor;
+}
+
 export async function getAllUsers(req, res) {
   const users = await User.find({});
 
@@ -141,10 +153,7 @@ export async function updateUserRole(req, res) {
 
   // The token can be up to 15 minutes old, so for this sensitive route we ask the database
   // who is calling. An admin who was demoted a minute ago must not still pass.
-  const actor = await User.findById(req.user.userId)
-  if (!actor || actor.role !== 'admin') {
-    throw new ForbiddenError('You are not allowed to access this route');
-  }
+  const actor = await loadCurrentAdmin(req.user.userId);
 
   const target = await User.findById(id)
   if (!target) {
@@ -165,5 +174,36 @@ export async function updateUserRole(req, res) {
   target.role = role;
   await target.save()
 
-  res.status(200).json({user: toUserResponse(target)})
+  res.status(200).json({ user: toUserResponse(target) })
+}
+
+export async function deleteUser(req, res) {
+  const { id } = req.params;
+
+  if (id === req.user.userId) {
+    throw new ForbiddenError('You cannot delete your own account');
+  }
+
+  const actor = await loadCurrentAdmin(req.user.userId);
+
+  const target = await User.findById(id);
+  if (!target) {
+    throw new NotFoundError('User not found');
+  }
+
+  if (target.isOwner) {
+    throw new ForbiddenError('Nobody can delete the owner');
+  }
+  // Same rule as the role route: admins are managed by the owner only
+  if (target.role === 'admin' && !actor.isOwner) {
+    throw new ForbiddenError('Only the owner can delete admins');
+  }
+
+  // 1. The account goes first, so nobody can log in with it any more
+  await target.deleteOne();
+
+  // 2. Then everything that belonged to it
+  await revokeAllRefreshTokens(target.id);
+
+  res.status(200).json({ msg: 'User removed' });
 }

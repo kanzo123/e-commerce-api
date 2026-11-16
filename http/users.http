@@ -492,3 +492,66 @@ POST {{host}}/api/v1/auth/refresh
 ### U71. The owner lists users -> 200, exactly one account has isOwner true
 GET {{host}}/api/v1/users/
 Authorization: Bearer {{adminToken}}
+
+
+# ---------------------------------------------------------------------------------------------
+# DELETE A USER and TRANSFER OWNERSHIP (U72 onwards)
+# Run U53 to U71 first (they create Omar and leave Sara as a normal user with her cookie in the jar).
+# At the end the first admin account is the owner again and Sara is a normal user again.
+# ---------------------------------------------------------------------------------------------
+
+### U72. Delete a user with no token -> 401
+DELETE {{host}}/api/v1/users/{{omarId}}
+
+### U73. Sara (normal user) tries to delete -> 403 "You are not allowed to access this route"
+DELETE {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{userToken}}
+
+### U74. The owner tries to delete their own account -> 403 "You cannot delete your own account"
+DELETE {{host}}/api/v1/users/{{adminId}}
+Authorization: Bearer {{adminToken}}
+
+### U75. An id that does not exist -> 404 "User not found"
+DELETE {{host}}/api/v1/users/{{ghostId}}
+Authorization: Bearer {{adminToken}}
+
+### U76. A broken id -> 400 "Invalid value for _id"
+DELETE {{host}}/api/v1/users/abc
+Authorization: Bearer {{adminToken}}
+
+### U77. The owner makes Sara an admin -> 200
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U78. Sara refreshes -> 200, her new token says admin
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U79. Sara (admin, but not the owner) tries to delete the owner -> 403 "Nobody can delete the owner"
+DELETE {{host}}/api/v1/users/{{adminId}}
+Authorization: Bearer {{userToken}}
+
+### U80. The owner makes Omar an admin -> 200
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U81. Sara tries to delete Omar (an admin) -> 403 "Only the owner can delete admins"
+DELETE {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{userToken}}
+
+### U82. The owner deletes Omar (an admin) -> 200 "User removed"
+DELETE {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{adminToken}}
+
+### U83. Omar is gone -> 404 "User not found"
+GET {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{adminToken}}

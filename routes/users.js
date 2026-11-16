@@ -6,6 +6,7 @@ import {
   updateCurrentUser,
   updateCurrentUserPassword,
   updateUserRole,
+  deleteUser,
 } from "../controllers/users.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authentication.js";
 
@@ -22,5 +23,6 @@ router.get('/', authorizeRoles('admin'), getAllUsers)
 // Must stay AFTER '/me', or Express would read the word "me" as an id
 router.get('/:id', getSingleUser)
 router.patch('/:id/role', authorizeRoles('admin'), updateUserRole);
+router.delete('/:id', authorizeRoles('admin'), deleteUser);
 
 export default router;

@@ -555,3 +555,134 @@ Authorization: Bearer {{adminToken}}
 ### U83. Omar is gone -> 404 "User not found"
 GET {{host}}/api/v1/users/{{omarId}}
 Authorization: Bearer {{adminToken}}
+
+### U84. Register Zed, a normal user used in the next tests -> 201 the first time, 409 if he already exists (both are fine)
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Zed Mostafa",
+  "email": "zed@example.com",
+  "password": "secret123"
+}
+
+### U85. Login as Zed -> 200, saves zedId
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "zed@example.com",
+  "password": "secret123"
+}
+
+> {%
+  client.global.set('zedId', response.body.user.id)
+%}
+
+### U86. Transfer ownership with no token -> 401
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Content-Type: application/json
+
+{ "password": "asdfasdf" }
+
+### U87. Sara (admin, but not the owner) tries -> 403 "Only the owner can transfer ownership"
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U88. The owner sends no password -> 400 "Please provide your password"
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+### U89. The owner picks themselves -> 400 "You are already the owner"
+POST {{host}}/api/v1/users/{{adminId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U90. The owner picks Zed, who is not an admin -> 400 "The new owner must already be an admin"
+POST {{host}}/api/v1/users/{{zedId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U91. An id that does not exist -> 404 "User not found"
+POST {{host}}/api/v1/users/{{ghostId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U92. A broken id -> 400 "Invalid value for _id"
+POST {{host}}/api/v1/users/abc/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U93. Wrong password -> 400 "Password is incorrect"
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "wrong-password" }
+
+### U94. The owner gives ownership to Sara, with the right password -> 200 "Ownership transferred", the answer shows Sara with isOwner true
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U95. The old owner (now a normal admin) tries to change Sara's role -> 403 "Nobody can change the owner's role"
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U96. The old owner tries to delete Sara -> 403 "Nobody can delete the owner"
+DELETE {{host}}/api/v1/users/{{saraId}}
+Authorization: Bearer {{adminToken}}
+
+### U97. Sara (the new owner) gives ownership back to the first account -> 200 "Ownership transferred"
+POST {{host}}/api/v1/users/{{adminId}}/transfer-ownership
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U98. The first account is the owner again -> 200, isOwner true
+GET {{host}}/api/v1/users/me
+Authorization: Bearer {{adminToken}}
+
+### U99. Sara is a normal admin again -> 200, isOwner false
+GET {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+
+### U100. Sara (admin, not the owner) deletes Zed, a normal user -> 200 "User removed"
+DELETE {{host}}/api/v1/users/{{zedId}}
+Authorization: Bearer {{userToken}}
+
+### U101. The owner takes Sara's admin rights away -> 200, role user
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U102. Sara refreshes -> 200, her token says user again
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}

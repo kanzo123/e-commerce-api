@@ -207,3 +207,46 @@ export async function deleteUser(req, res) {
 
   res.status(200).json({ msg: 'User removed' });
 }
+
+export async function transferOwnership(req, res) {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  const actor = await loadCurrentAdmin(req.user.userId, { withPassword: true });
+  if (!actor.isOwner) {
+    throw new ForbiddenError('Only the owner can transfer ownership');
+  }
+
+  // A big and rare action: ask for the password again, even though the owner is logged in.
+  // (A stolen access token alone must not be enough to take the shop away.)
+  if (typeof password !== 'string' || !password) {
+    throw new BadRequestError('Please provide your password');
+  }
+
+  if (id === req.user.userId) {
+    throw new BadRequestError('You are already the owner');
+  }
+
+  const newOwner = await User.findById(id);
+  if (!newOwner) {
+    throw new NotFoundError('User not found');
+  }
+  if (newOwner.role !== 'admin') {
+    throw new BadRequestError('The new owner must already be an admin');
+  }
+
+  // The slow check (bcrypt) comes last
+  if (!(await actor.comparePassword(password))) {
+    throw new BadRequestError('Password is incorrect');
+  }
+
+  // Order matters. The new owner is saved first: if the server stops between the two saves,
+  // there are briefly two owners, which is safe. The other way round could leave no owner at all.
+  newOwner.isOwner = true;
+  await newOwner.save();
+
+  actor.isOwner = false; // the old owner stays an admin
+  await actor.save();
+
+  res.status(200).json({ msg: 'Ownership transferred', owner: toUserResponse(newOwner) });
+}

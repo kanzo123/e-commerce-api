@@ -7,6 +7,7 @@ import {
   updateCurrentUserPassword,
   updateUserRole,
   deleteUser,
+  transferOwnership,
 } from "../controllers/users.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authentication.js";
 
@@ -24,5 +25,6 @@ router.get('/', authorizeRoles('admin'), getAllUsers)
 router.get('/:id', getSingleUser)
 router.patch('/:id/role', authorizeRoles('admin'), updateUserRole);
 router.delete('/:id', authorizeRoles('admin'), deleteUser);
+router.post('/:id/transfer-ownership', authorizeRoles('admin'), transferOwnership);
 
 export default router;

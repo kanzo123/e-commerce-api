@@ -1,3 +1,5 @@
+@ghostId = 64b7f0f0f0f0f0f0f0f0f0f0
+
 ### 0. Logout first, so there is no cookie
 POST {{host}}/api/v1/auth/logout
 
@@ -22,3 +24,665 @@ Authorization: Bearer {{adminToken}}
 
 ### U6. All users with no token -> 401
 GET {{host}}/api/v1/users
+
+
+
+
+
+### U7. Sara reads her own id -> 200
+GET {{host}}/api/v1/users/{{saraId}}
+Authorization: Bearer {{userToken}}
+
+### U8. Sara reads the admin's id -> 403
+GET {{host}}/api/v1/users/{{adminId}}
+Authorization: Bearer {{userToken}}
+
+### U9. Admin reads Sara -> 200
+GET {{host}}/api/v1/users/{{saraId}}
+Authorization: Bearer {{adminToken}}
+
+### U10. Admin, an id that does not exist -> 404 "User not found"
+GET {{host}}/api/v1/users/{{ghostId}}
+Authorization: Bearer {{adminToken}}
+
+### U11. Admin, a broken id -> 400 "Invalid value for _id"
+GET {{host}}/api/v1/users/abc
+Authorization: Bearer {{adminToken}}
+
+### U12. No token -> 401
+GET {{host}}/api/v1/users/{{saraId}}
+
+### U13. Sara, an id that does not exist -> 403 (the same answer as U8)
+GET {{host}}/api/v1/users/{{ghostId}}
+Authorization: Bearer {{userToken}}
+
+### U14. Sara, a broken id -> 403
+GET {{host}}/api/v1/users/abc
+Authorization: Bearer {{userToken}}
+
+
+
+
+### U15. Name only -> 200
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "Sara Hassan" }
+
+### U16. Email with capitals and spaces -> 200, saved as lowercase without spaces
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "  SARA.New@Example.com " }
+
+### U17. Both fields, back to the original email -> 200 (run right after U16)
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "Sara Ali", "email": "sara@example.com" }
+
+### U18. Nothing to change -> 400 "Please provide name or email"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{}
+
+### U19. Name is an object -> 400 "name must be text"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": { "$gt": "" } }
+
+### U20. Empty name -> 400 "Please provide name"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "" }
+
+### U21. Short name -> 400 "Name must be at least 3 characters"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "ab" }
+
+### U22. Bad email -> 400 "Please provide a valid email"
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "nope" }
+
+### U23. Email already used by the admin -> 409 "Duplicate value entered for email..."
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "admin@example.com" }
+
+### U23b. Admin's email with capitals and spaces -> 409 (the clean value is checked)
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "email": "  ADMIN@Example.COM " }
+
+### U24. Sneaking in role and password -> 200, but both are ignored
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "Sara Ali", "role": "admin", "password": "hacked123" }
+
+### U25. No token -> 401
+PATCH {{host}}/api/v1/users/me
+Content-Type: application/json
+
+{ "name": "Sara Ali" }
+
+
+
+
+### U26. No token -> 401
+PATCH {{host}}/api/v1/users/me/password
+Content-Type: application/json
+
+{ "oldPassword": "secret123", "newPassword": "newpass456" }
+
+### U27. Empty body -> 400 "Please provide oldPassword and newPassword"
+PATCH {{host}}/api/v1/users/me/password
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{}
+
+### U28. newPassword is an object -> 400, same message
+PATCH {{host}}/api/v1/users/me/password
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "oldPassword": "secret123", "newPassword": { "$gt": "" } }
+
+### U29. Wrong old password -> 400 "Old password is incorrect"
+PATCH {{host}}/api/v1/users/me/password
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "oldPassword": "wrong-one", "newPassword": "newpass456" }
+
+### U30. Same password -> 400 "New password must be different from the old password"
+PATCH {{host}}/api/v1/users/me/password
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "oldPassword": "secret123", "newPassword": "secret123" }
+
+### U31. New password too short -> 400 "Password must be at least 6 characters"
+PATCH {{host}}/api/v1/users/me/password
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "oldPassword": "secret123", "newPassword": "abc" }
+
+### U32. Success -> 200 {msg, accessToken}; also sets a new refresh cookie
+PATCH {{host}}/api/v1/users/me/password
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "oldPassword": "secret123", "newPassword": "newpass456" }
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U33. The OLD login (from login B) is dead -> 401
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/refresh
+Cookie: refreshToken={{firstRefresh}}
+
+### U34. This device's NEW cookie works on /auth/refresh -> 200 (the important check)
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U35. Login with the OLD password -> 401
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "sara@example.com", "password": "secret123" }
+
+### U36. Login with the NEW password -> 200
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{ "email": "sara@example.com", "password": "newpass456" }
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U37. Change it back so the other tests keep working -> 200
+PATCH {{host}}/api/v1/users/me/password
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "oldPassword": "newpass456", "newPassword": "secret123" }
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+
+
+
+
+
+### U38. No token -> 401
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Content-Type: application/json
+
+{ "role": "manager" }
+
+### U39. Sara (user) tries -> 403 "You are not allowed to access this route"
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "manager" }
+
+### U40. Admin, unknown role -> 400 "Role must be one of: user, manager, admin"
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "superuser" }
+
+### U41. Role is an object -> 400, same message
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": { "$gt": "" } }
+
+### U42. No role -> 400, same message
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+### U43. Admin changes their own role -> 403 "You cannot change your own role"
+PATCH {{host}}/api/v1/users/{{adminId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U44. Id that does not exist -> 404 "User not found"
+PATCH {{host}}/api/v1/users/{{ghostId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "manager" }
+
+### U45. Broken id -> 400 "Invalid value for _id"
+PATCH {{host}}/api/v1/users/abc/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "manager" }
+
+### U46. Admin makes Sara a manager -> 200, role "manager", name NOT changed
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "manager", "name": "Hacker" }
+
+### U47. Sara refreshes -> 200, her new token now says manager
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U48. Sara (manager) lists users -> 403 (the user list is admin only)
+GET {{host}}/api/v1/users
+Authorization: Bearer {{userToken}}
+
+### U49. Sara (manager) tries to change a role -> 403
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U50. Admin lists users -> 200, every account, with its role (admin and manager included)
+GET {{host}}/api/v1/users
+Authorization: Bearer {{adminToken}}
+
+### U51. Admin sets Sara back to user -> 200
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U52. Sara refreshes again so her token says user -> 200
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+###
+# ---------------------------------------------------------------------------------------------
+# THE OWNER (U53 onwards)
+# One-time step BEFORE U53: in Atlas, open the users collection, edit the document of
+# the admin and add the field  isOwner  (type Boolean) with the value  true.
+# New accounts are never owners. Run A and B in auth.http first, so adminToken and userToken are fresh
+# and the cookie jar holds Sara's cookie (U60 and U70 need it).
+# ---------------------------------------------------------------------------------------------
+
+### U53. The owner reads their own account -> 200, isOwner true
+GET {{host}}/api/v1/users/me
+Authorization: Bearer {{adminToken}}
+
+### U54. Sara reads her own account -> 200, isOwner false
+GET {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+
+### U55. Register with "isOwner": true and "role": "admin" in the body -> 201 the first time, 409 if she already exists (both are fine). The answer must say role user, isOwner false
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Mallory",
+  "email": "mallory@example.com",
+  "password": "secret123",
+  "isOwner": true,
+  "role": "admin"
+}
+
+### U56. Sara changes her name and also sends "isOwner": true -> 200, isOwner stays false
+PATCH {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "name": "Sara Ali", "isOwner": true }
+
+### U57. Register Omar, a third account used as the target in the next tests -> 201 the first time, 409 if he already exists (both are fine)
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Omar Hassan",
+  "email": "omar@example.com",
+  "password": "secret123"
+}
+
+### U58. Login as Omar -> 200, saves omarId
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "omar@example.com",
+  "password": "secret123"
+}
+
+> {%
+  client.global.set('omarId', response.body.user.id)
+%}
+
+### U59. The owner makes Sara an admin -> 200, role admin, isOwner false
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U60. Sara refreshes -> 200, her new token now says admin
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U61. Sara (admin, but not the owner) tries to change the owner -> 403 "Nobody can change the owner's role"
+PATCH {{host}}/api/v1/users/{{adminId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U62. Sara tries to make Omar an admin -> 403 "Only the owner can make or remove admins"
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U63. Sara makes Omar a manager -> 200 (admins can still move people between user and manager)
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "manager" }
+
+### U64. Sara sets Omar back to user -> 200
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U65. The owner makes Omar an admin -> 200
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U66. Sara tries to demote Omar (now an admin) -> 403 "Only the owner can make or remove admins"
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U67. The owner demotes Omar back to user -> 200
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U68. The owner takes Sara's admin rights away -> 200, role user (Sara's token still says admin for now)
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U69. Sara uses her OLD admin token -> 403 "You are not allowed to access this route" (the database says she is not an admin any more)
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "role": "manager" }
+
+### U70. Sara refreshes -> 200, her token says user again
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U71. The owner lists users -> 200, exactly one account has isOwner true
+GET {{host}}/api/v1/users/
+Authorization: Bearer {{adminToken}}
+
+
+# ---------------------------------------------------------------------------------------------
+# DELETE A USER and TRANSFER OWNERSHIP (U72 onwards)
+# Run U53 to U71 first (they create Omar and leave Sara as a normal user with her cookie in the jar).
+# At the end the first admin account is the owner again and Sara is a normal user again.
+# ---------------------------------------------------------------------------------------------
+
+### U72. Delete a user with no token -> 401
+DELETE {{host}}/api/v1/users/{{omarId}}
+
+### U73. Sara (normal user) tries to delete -> 403 "You are not allowed to access this route"
+DELETE {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{userToken}}
+
+### U74. The owner tries to delete their own account -> 403 "You cannot delete your own account"
+DELETE {{host}}/api/v1/users/{{adminId}}
+Authorization: Bearer {{adminToken}}
+
+### U75. An id that does not exist -> 404 "User not found"
+DELETE {{host}}/api/v1/users/{{ghostId}}
+Authorization: Bearer {{adminToken}}
+
+### U76. A broken id -> 400 "Invalid value for _id"
+DELETE {{host}}/api/v1/users/abc
+Authorization: Bearer {{adminToken}}
+
+### U77. The owner makes Sara an admin -> 200
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U78. Sara refreshes -> 200, her new token says admin
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}
+
+### U79. Sara (admin, but not the owner) tries to delete the owner -> 403 "Nobody can delete the owner"
+DELETE {{host}}/api/v1/users/{{adminId}}
+Authorization: Bearer {{userToken}}
+
+### U80. The owner makes Omar an admin -> 200
+PATCH {{host}}/api/v1/users/{{omarId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "admin" }
+
+### U81. Sara tries to delete Omar (an admin) -> 403 "Only the owner can delete admins"
+DELETE {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{userToken}}
+
+### U82. The owner deletes Omar (an admin) -> 200 "User removed"
+DELETE {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{adminToken}}
+
+### U83. Omar is gone -> 404 "User not found"
+GET {{host}}/api/v1/users/{{omarId}}
+Authorization: Bearer {{adminToken}}
+
+### U84. Register Zed, a normal user used in the next tests -> 201 the first time, 409 if he already exists (both are fine)
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Zed Mostafa",
+  "email": "zed@example.com",
+  "password": "secret123"
+}
+
+### U85. Login as Zed -> 200, saves zedId
+# @no-cookie-jar
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "zed@example.com",
+  "password": "secret123"
+}
+
+> {%
+  client.global.set('zedId', response.body.user.id)
+%}
+
+### U86. Transfer ownership with no token -> 401
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Content-Type: application/json
+
+{ "password": "asdfasdf" }
+
+### U87. Sara (admin, but not the owner) tries -> 403 "Only the owner can transfer ownership"
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U88. The owner sends no password -> 400 "Please provide your password"
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+### U89. The owner picks themselves -> 400 "You are already the owner"
+POST {{host}}/api/v1/users/{{adminId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U90. The owner picks Zed, who is not an admin -> 400 "The new owner must already be an admin"
+POST {{host}}/api/v1/users/{{zedId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U91. An id that does not exist -> 404 "User not found"
+POST {{host}}/api/v1/users/{{ghostId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U92. A broken id -> 400 "Invalid value for _id"
+POST {{host}}/api/v1/users/abc/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U93. Wrong password -> 400 "Password is incorrect"
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "wrong-password" }
+
+### U94. The owner gives ownership to Sara, with the right password -> 200 "Ownership transferred", the answer shows Sara with isOwner true
+POST {{host}}/api/v1/users/{{saraId}}/transfer-ownership
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U95. The old owner (now a normal admin) tries to change Sara's role -> 403 "Nobody can change the owner's role"
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U96. The old owner tries to delete Sara -> 403 "Nobody can delete the owner"
+DELETE {{host}}/api/v1/users/{{saraId}}
+Authorization: Bearer {{adminToken}}
+
+### U97. Sara (the new owner) gives ownership back to the first account -> 200 "Ownership transferred"
+POST {{host}}/api/v1/users/{{adminId}}/transfer-ownership
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "password": "secret123" }
+
+### U98. The first account is the owner again -> 200, isOwner true
+GET {{host}}/api/v1/users/me
+Authorization: Bearer {{adminToken}}
+
+### U99. Sara is a normal admin again -> 200, isOwner false
+GET {{host}}/api/v1/users/me
+Authorization: Bearer {{userToken}}
+
+### U100. Sara (admin, not the owner) deletes Zed, a normal user -> 200 "User removed"
+DELETE {{host}}/api/v1/users/{{zedId}}
+Authorization: Bearer {{userToken}}
+
+### U101. The owner takes Sara's admin rights away -> 200, role user
+PATCH {{host}}/api/v1/users/{{saraId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "user" }
+
+### U102. Sara refreshes -> 200, her token says user again
+POST {{host}}/api/v1/auth/refresh
+
+> {%
+  client.global.set('userToken', response.body.accessToken)
+%}

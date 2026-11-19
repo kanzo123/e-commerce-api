@@ -1,5 +1,14 @@
 import express from 'express'
-import { getAllUsers, getCurrentUser } from "../controllers/users.js";
+import {
+  getAllUsers,
+  getCurrentUser,
+  getSingleUser,
+  updateCurrentUser,
+  updateCurrentUserPassword,
+  updateUserRole,
+  deleteUser,
+  transferOwnership,
+} from "../controllers/users.js";
 import { authenticateUser, authorizeRoles } from "../middleware/authentication.js";
 
 const router = express.Router();
@@ -8,6 +17,14 @@ const router = express.Router();
 router.use(authenticateUser)
 
 router.get('/me', getCurrentUser)
+router.patch('/me', updateCurrentUser)
+router.patch('/me/password', updateCurrentUserPassword)
 router.get('/', authorizeRoles('admin'), getAllUsers)
+
+// Must stay AFTER '/me', or Express would read the word "me" as an id
+router.get('/:id', getSingleUser)
+router.patch('/:id/role', authorizeRoles('admin'), updateUserRole);
+router.delete('/:id', authorizeRoles('admin'), deleteUser);
+router.post('/:id/transfer-ownership', authorizeRoles('admin'), transferOwnership);
 
 export default router;

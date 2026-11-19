@@ -24,11 +24,11 @@ export async function getAllUsers(req, res) {
   res.status(200).json({ users: users.map(toUserResponse), count: users.length })
 }
 
+// Used to retrieve the profile information of the currently authenticated user
 export async function getCurrentUser(req, res) {
   const user = await User.findById(req.user.userId)
   // If the name or email changes, the old token still shows the old
-  // value for up to 15 minutes. We read name and email from the database, this way
-  // we avoid populating the payload of jwt with more user info (req.user).
+  // value for up to 15 minutes. This why we read name and email from the database.
   // That is also why in PATCH /users/me we don't create a new token.
 
   // The account was deleted, but its access token has not expired yet
@@ -86,6 +86,10 @@ export async function updateCurrentUser(req, res) {
   // if name or email are the same as the one in db, user.save() silently skips the
   // database write
 
+  // In this route (PATCH /users/me) we don't create a new token, as there's only role
+  // in the jwt payload. Also, the other controllers load the fresh user data from
+  // the database.
+
   res.status(200).json({ user: toUserResponse(user) });
 }
 
@@ -140,9 +144,9 @@ export async function updateCurrentUserPassword(req, res) {
 
 export async function updateUserRole(req, res) {
   const { id } = req.params;
-  const { role } = req.body
+  const { role: newRole } = req.body
 
-  if (typeof role !== 'string' || !ROLES.includes(role)) {
+  if (typeof newRole !== 'string' || !ROLES.includes(newRole)) {
     throw new BadRequestError(`Role must be one of: ${ROLES.join(', ')}`);
   }
 
@@ -167,7 +171,8 @@ export async function updateUserRole(req, res) {
 
   // Making someone an admin, or changing an admin, is for the owner only.
   // Other admins can still move people between user and manager.
-  if ((role === 'admin' || target.role === 'admin') && !actor.isOwner) {
+  const involvesAdmin = newRole === 'admin' || target.role === 'admin';
+  if (involvesAdmin && !actor.isOwner) {
     throw new ForbiddenError('Only the owner can make or remove admins')
   }
 

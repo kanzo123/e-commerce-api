@@ -176,7 +176,7 @@ export async function updateUserRole(req, res) {
     throw new ForbiddenError('Only the owner can make or remove admins')
   }
 
-  target.role = role;
+  target.role = newRole;
   await target.save()
 
   res.status(200).json({ user: toUserResponse(target) })

@@ -40,6 +40,9 @@ export async function removeImage(publicId) {
     await cloudinary.uploader.destroy(publicId);
   } catch (err) {
     console.error(`Could not delete Cloudinary image ${publicId}:`, err.message ?? err);
-    // notice that we are not using throw here
+    // notice that we are not using `throw err` here otherwise the user would
+    // get a 500 even though the database change (updating the image)
+    // already worked. Here we only write a line in the log and the
+    // request still succeeds
   }
 }

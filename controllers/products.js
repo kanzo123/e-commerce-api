@@ -130,3 +130,28 @@ export async function updateProductImage(req, res) {
 
   res.status(200).json({ product: toProductResponse(product) });
 }
+
+export async function deleteProductImage(req, res) {
+  const product = await Product.findById(req.params.id);
+
+  if (!product) {
+    throw new NotFoundError('Product not found');
+  }
+
+  if (!product.image?.src) {
+    throw new NotFoundError('Product has no image');
+  }
+
+  const oldPublicId = product.image.publicId;
+
+  // 1. Remove the image from the product. "= undefined" takes the whole field out of the document.
+  product.image = undefined;
+  await product.save();
+
+  // 2. Only now delete the file (the database no longer points at it)
+  if (oldPublicId) {
+    await removeImage(oldPublicId);
+  }
+
+  res.status(200).json({ product: toProductResponse(product) });
+}

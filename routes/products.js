@@ -8,6 +8,7 @@ import {
   getSingleProduct,
   updateProduct,
   updateProductImage,
+  deleteProductImage,
 } from '../controllers/products.js';
 
 const router = express.Router();
@@ -22,7 +23,9 @@ router.route('/')
   .post(...managerOrAdmin, createProduct);
 
 // Order matters: first who you are, then your role, and only then is the file read
-router.patch('/:id/image', ...managerOrAdmin, uploadImage, updateProductImage);
+router.route('/:id/image')
+  .patch(...managerOrAdmin, uploadImage, updateProductImage)
+  .delete(...managerOrAdmin, deleteProductImage);
 
 router.route('/:id')
   .get(getSingleProduct) // Anyone can browse, even without an account

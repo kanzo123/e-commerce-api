@@ -2,6 +2,7 @@ import Product from '../models/Product.js';
 import { BadRequestError, NotFoundError } from '../errors/index.js';
 import { toProductResponse } from '../utils/product-response.js';
 import { removeImage, storeImage } from "../services/images.js";
+import { getPagination } from "../utils/pagination.js";
 
 // The only fields a manager may send. Everything else (image, averageRating,
 // numOfReviews, createdBy) is set by the server and never read from the body.
@@ -39,11 +40,24 @@ export async function createProduct(req, res) {
 }
 
 export async function getAllProducts(req, res) {
-  const products = await Product.find({}).sort('-createdAt'); // newest first
+  const { page, limit, skip } = getPagination(req.query);
+
+  // Both questions are asked at the same time:
+  // "what is on this page?" and "how many products are there?"
+  const [products, total] = await Promise.all([
+    // _id is the tie-breaker: two products with the same createdAt must always
+    // come in the same order, or a product could appear on two pages (or on none)
+    Product.find({}).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit),
+    Product.countDocuments({}),
+  ]);
 
   res.status(200).json({
     products: products.map(toProductResponse),
-    count: products.length,
+    count: products.length, // how many are on THIS page
+    total, // total number of products
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
   });
 }
 

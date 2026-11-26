@@ -1,0 +1,157 @@
+@host = http://localhost:5000
+
+# Creates the 4 shop products from mockData/products.json. Run it ONCE (running it twice makes 8 products).
+#
+# BEFORE YOU START:
+#   1. Run test A in auth.http (it saves adminToken). Access tokens last 15 minutes.
+#   2. Remove the old test products first, or they will show up next to the new ones:
+#      Atlas > Browse Collections > e-commerce-api > products > delete the old test documents.
+#
+# Same names, prices, colors, companies and categories as mockData/products.json, with these changes:
+#   - "inventory" is added (the mock file has none, and our model requires it)
+#   - the long lorem-ipsum descriptions are replaced by short ones, so the answers stay easy to read
+#   - some products are "featured" and some have "freeShipping" (the mock file has neither)
+# The inventory numbers are small on purpose. "albany sectional" has only 3 in stock, so in Part 6
+# we can test "you ordered more than we have".
+# (The categories are exactly as in the instructor's data: yes, the sofa is in "kitchen".)
+
+
+### SEED1. accent chair -> 201, saves seedChairId
+POST {{host}}/api/v1/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "accent chair",
+  "price": 25999,
+  "description": "A soft, comfortable chair for the office.",
+  "category": "office",
+  "company": "marcos",
+  "colors": ["#ff0000", "#00ff00", "#0000ff"],
+  "featured": true,
+  "inventory": 10
+}
+
+> {%
+    client.global.set('seedChairId', response.body.product.id)
+%}
+
+### SEED2. albany sectional -> 201, saves seedSectionalId
+POST {{host}}/api/v1/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "albany sectional",
+  "price": 109999,
+  "description": "A large corner sofa with room for the whole family.",
+  "category": "bedroom",
+  "company": "liddy",
+  "colors": ["#000", "#ffb900"],
+  "freeShipping": true,
+  "inventory": 3
+}
+
+> {%
+    client.global.set('seedSectionalId', response.body.product.id)
+%}
+
+### SEED3. armchair -> 201, saves seedArmchairId
+POST {{host}}/api/v1/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "armchair",
+  "price": 12599,
+  "description": "A small armchair that fits in any bedroom.",
+  "category": "bedroom",
+  "company": "marcos",
+  "colors": ["#000", "#00ff00", "#0000ff"],
+  "inventory": 25
+}
+
+> {%
+    client.global.set('seedArmchairId', response.body.product.id)
+%}
+
+### SEED4. emperor bed -> 201, saves seedBedId
+POST {{host}}/api/v1/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "emperor bed",
+  "price": 23999,
+  "description": "A wide bed with a strong wooden frame.",
+  "category": "bedroom",
+  "company": "ikea",
+  "colors": ["#0000ff", "#000"],
+  "featured": true,
+  "freeShipping": true,
+  "inventory": 7
+}
+
+> {%
+    client.global.set('seedBedId', response.body.product.id)
+%}
+
+### SEED5. Read all products -> 200, "count": 4 (if you cleaned the old ones), newest first, no "image" yet
+GET {{host}}/api/v1/products
+
+
+### -------- IMAGES --------
+# For now every product gets the same test photo. Later you can put your own pictures
+# in the http folder and change the file names below.
+
+### SEED6. Image for accent chair -> 200
+PATCH {{host}}/api/v1/products/{{seedChairId}}/image
+Authorization: Bearer {{adminToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="accent-chair.jpg"
+Content-Type: image/jpeg
+
+< ../images/accent-chair.jpg
+--WebAppBoundary--
+
+### SEED7. Image for albany sectional -> 200
+PATCH {{host}}/api/v1/products/{{seedSectionalId}}/image
+Authorization: Bearer {{adminToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="albany-sectional.jpg"
+Content-Type: image/jpeg
+
+< ../images/albany-sectional.jpg
+--WebAppBoundary--
+
+### SEED8. Image for armchair -> 200
+PATCH {{host}}/api/v1/products/{{seedArmchairId}}/image
+Authorization: Bearer {{adminToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="arm-chair.jpg"
+Content-Type: image/jpeg
+
+< ../images/arm-chair.jpg
+--WebAppBoundary--
+
+### SEED9. Image for emperor bed -> 200
+PATCH {{host}}/api/v1/products/{{seedBedId}}/image
+Authorization: Bearer {{adminToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="emperor-bed.jpg"
+Content-Type: image/jpeg
+
+< ../images/emperor-bed.jpg
+--WebAppBoundary--
+
+### SEED10. Read all products -> 200, all 4 have an "image" link
+# Cloudinary > Assets > e-commerce-api/products: 4 files.
+GET {{host}}/api/v1/products

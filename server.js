@@ -5,7 +5,7 @@ import connectDB from "./db/connect.js";
 const port = process.env.PORT || 5000;
 
 // Stop early, with a clear message, if a setting is missing in .env
-for (const name of ['MONGO_URL', 'JWT_SECRET']) {   // NEW
+for (const name of ['MONGO_URL', 'JWT_SECRET', 'CLOUDINARY_URL']) {   // NEW
   if (!process.env[name]) {
     console.error(`Missing ${name} in .env`);
     process.exit(1);

@@ -1,0 +1,68 @@
+@host = http://localhost:5000
+
+# These tests expect exactly the 4 products from seed-products.http (SEED1-SEED5 done, nothing else in the products collection).
+# Newest first, that order is: emperor bed, armchair, albany sectional, accent chair.
+# No token is needed, anyone can browse.
+#
+# Every answer has these fields:
+#   products     the products on THIS page
+#   count        how many products are on this page
+#   total        how many products exist
+#   page         the page you asked for (1 if you did not say)
+#   limit        products per page (10 if you did not say)
+#   totalPages   how many pages there are with this limit
+
+
+### PAGE1. No query -> 200, count 4, total 4, page 1, limit 10, totalPages 1
+GET {{host}}/api/v1/products
+
+### PAGE2. Two per page -> 200, emperor bed + armchair, count 2, total 4, limit 2, totalPages 2
+GET {{host}}/api/v1/products?limit=2
+
+### PAGE3. Second page -> 200, albany sectional + accent chair, page 2
+GET {{host}}/api/v1/products?page=2&limit=2
+
+### PAGE4. A page after the last one -> 200 (not an error), "products": [], count 0, total still 4
+GET {{host}}/api/v1/products?page=3&limit=2
+
+### PAGE5. One per page -> 200, count 1, totalPages 4
+GET {{host}}/api/v1/products?limit=1
+
+### PAGE6. Unknown query names are ignored -> 200, same as PAGE1
+GET {{host}}/api/v1/products?color=red
+
+### PAGE7. The biggest page size allowed -> 200, limit 100
+GET {{host}}/api/v1/products?limit=100
+
+
+### -------- wrong values: all 400 --------
+
+### PAGE8. page=0 -> 400 "page must be a whole number from 1 to 100000"
+GET {{host}}/api/v1/products?page=0
+
+### PAGE9. page=-1 -> 400, same message
+GET {{host}}/api/v1/products?page=-1
+
+### PAGE10. page=abc -> 400, same message
+GET {{host}}/api/v1/products?page=abc
+
+### PAGE11. page=1.5 -> 400, same message
+GET {{host}}/api/v1/products?page=1.5
+
+### PAGE12. page is empty -> 400, same message
+GET {{host}}/api/v1/products?page=
+
+### PAGE13. page sent twice -> 400, same message
+GET {{host}}/api/v1/products?page=1&page=2
+
+### PAGE14. A page number that is too big -> 400, same message
+GET {{host}}/api/v1/products?page=100001
+
+### PAGE15. limit=0 -> 400 "limit must be a whole number from 1 to 100"
+GET {{host}}/api/v1/products?limit=0
+
+### PAGE16. limit=101 -> 400, same message
+GET {{host}}/api/v1/products?limit=101
+
+### PAGE17. limit=ten -> 400, same message
+GET {{host}}/api/v1/products?limit=ten

@@ -1,0 +1,334 @@
+@host = http://localhost:5000
+@ghostId = 64b7f0f0f0f0f0f0f0f0f0f0
+
+# Run from top to bottom.
+# Before you start: run test A and test B in auth.http (they save adminToken and userToken).
+# Access tokens last 15 minutes. If a test gives 401 when you expect something else, run A and B again.
+
+
+### S1. Register the manager account -> 201 the first time, 409 if it already exists (both are fine)
+POST {{host}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "name": "Mona",
+  "email": "manager@example.com",
+  "password": "secret123"
+}
+
+### S2. Login as the manager -> 200, saves managerId (the token still says "user" at this point)
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@example.com",
+  "password": "secret123"
+}
+
+> {%
+    client.global.set('managerId', response.body.user.id)
+%}
+
+### S3. Admin makes the account a manager -> 200, role "manager"
+PATCH {{host}}/api/v1/users/{{managerId}}/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "role": "manager" }
+
+### S4. Login as the manager again -> 200, saves managerToken (this token says "manager")
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "manager@example.com",
+  "password": "secret123"
+}
+
+> {%
+    client.global.set('managerToken', response.body.accessToken)
+%}
+
+
+
+### P1. Create, no token -> 401
+POST {{host}}/api/v1/products
+Content-Type: application/json
+
+{
+  "name": "accent chair",
+  "price": 25999,
+  "description": "A comfortable chair",
+  "category": "office",
+  "company": "marcos",
+  "colors": ["#ff0000", "#00ff00"],
+  "inventory": 10
+}
+
+### P2. Create as Sara (normal user) -> 403
+POST {{host}}/api/v1/products
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "name": "accent chair",
+  "price": 25999,
+  "description": "A comfortable chair",
+  "category": "office",
+  "company": "marcos",
+  "colors": ["#ff0000", "#00ff00"],
+  "inventory": 10
+}
+
+### P3. Create as manager, and the body also tries to set rating, reviews, image, creator -> 201, those four are ignored (rating 0, 0 reviews, no image)
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "accent chair",
+  "price": 25999,
+  "description": "A comfortable chair",
+  "category": "office",
+  "company": "marcos",
+  "colors": ["#ff0000", "#00ff00"],
+  "inventory": 10,
+  "averageRating": 5,
+  "numOfReviews": 99,
+  "createdBy": "64b7f0f0f0f0f0f0f0f0f0f0",
+  "image": { "src": "https://evil.example/x.jpg", "publicId": "x" }
+}
+
+> {%
+    client.global.set('productId', response.body.product.id)
+%}
+
+### P4. Create as admin, only the required fields -> 201, colors ["#222"], featured false, freeShipping false
+POST {{host}}/api/v1/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "admin sofa",
+  "price": 109999,
+  "description": "A big sofa",
+  "category": "bedroom",
+  "company": "liddy",
+  "inventory": 3
+}
+
+### P5. Empty object -> 400, one "Please provide..." message for each required field
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{}
+
+### P6. Price with cents (12.5) -> 400 "Price must be a whole number..."
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "bad price",
+  "price": 12.5,
+  "description": "x",
+  "category": "office",
+  "company": "ikea",
+  "inventory": 1
+}
+
+### P7. Category that is not on the list -> 400 "garden is not a supported category"
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "bad category",
+  "price": 100,
+  "description": "x",
+  "category": "garden",
+  "company": "ikea",
+  "inventory": 1
+}
+
+### P8. Color that is a word -> 400 "Colors must be a list of hex colors..."
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "bad color",
+  "price": 100,
+  "description": "x",
+  "category": "office",
+  "company": "ikea",
+  "colors": ["red"],
+  "inventory": 1
+}
+
+### P9. Colors is null -> 400, the same message as P8 (not a crash)
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "null colors",
+  "price": 100,
+  "description": "x",
+  "category": "office",
+  "company": "ikea",
+  "colors": null,
+  "inventory": 1
+}
+
+### P10. Name is an object -> 400 (Mongoose's own "Cast to string failed" message: ugly but safe)
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": { "$gt": "" },
+  "price": 100,
+  "description": "x",
+  "category": "office",
+  "company": "ikea",
+  "inventory": 1
+}
+
+### P11. Price is the text "abc" -> 400 (Mongoose's "Cast to Number failed" message)
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "text price",
+  "price": "abc",
+  "description": "x",
+  "category": "office",
+  "company": "ikea",
+  "inventory": 1
+}
+
+### P12. Inventory below 0 -> 400 "Inventory cannot be negative"
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "negative stock",
+  "price": 100,
+  "description": "x",
+  "category": "office",
+  "company": "ikea",
+  "inventory": -1
+}
+
+
+
+### P13. List, no token -> 200, newest first, with a count. No _id, __v, createdBy or publicId in any product
+GET {{host}}/api/v1/products
+
+### P14. Single product, no token -> 200
+GET {{host}}/api/v1/products/{{productId}}
+
+### P15. An id that does not exist -> 404 "Product not found"
+GET {{host}}/api/v1/products/{{ghostId}}
+
+### P16. A broken id -> 400 "Invalid value for _id"
+GET {{host}}/api/v1/products/abc
+
+
+
+### P17. Update, no token -> 401
+PATCH {{host}}/api/v1/products/{{productId}}
+Content-Type: application/json
+
+{ "price": 1 }
+
+### P18. Update as Sara -> 403
+PATCH {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "price": 1 }
+
+### P19. Manager changes price and inventory -> 200, price 19999, inventory 7, everything else unchanged
+PATCH {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "price": 19999, "inventory": 7 }
+
+### P20. Only averageRating (not an allowed field) -> 400 "Please provide at least one of: ..."
+PATCH {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "averageRating": 5 }
+
+### P21. Negative price -> 400 "Price cannot be negative"
+PATCH {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "price": -5 }
+
+### P22. Read it again -> price is still 19999 (the failed update changed nothing)
+GET {{host}}/api/v1/products/{{productId}}
+
+### P23. Update an id that does not exist -> 404
+PATCH {{host}}/api/v1/products/{{ghostId}}
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "price": 5 }
+
+### P24. Admin changes name (with spaces) and colors -> 200, name trimmed to "Accent Chair XL", one color
+PATCH {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "name": "  Accent Chair XL  ", "colors": ["#fff"] }
+
+### P25. Colors set to an empty list -> 400
+PATCH {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "colors": [] }
+
+### P26. Description set to null -> 400 "Please provide product description"
+PATCH {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "description": null }
+
+
+
+### P27. Delete, no token -> 401
+DELETE {{host}}/api/v1/products/{{productId}}
+
+### P28. Delete as Sara -> 403
+DELETE {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{userToken}}
+
+### P29. Delete as manager -> 403 (only admins delete)
+DELETE {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{managerToken}}
+
+### P30. Admin, an id that does not exist -> 404
+DELETE {{host}}/api/v1/products/{{ghostId}}
+Authorization: Bearer {{adminToken}}
+
+### P31. Admin, a broken id -> 400
+DELETE {{host}}/api/v1/products/abc
+Authorization: Bearer {{adminToken}}
+
+### P32. Admin deletes the product -> 200 {"msg":"Product removed"}
+DELETE {{host}}/api/v1/products/{{productId}}
+Authorization: Bearer {{adminToken}}
+
+### P33. Read it again -> 404 "Product not found"
+GET {{host}}/api/v1/products/{{productId}}

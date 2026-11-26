@@ -1,0 +1,103 @@
+@host = http://localhost:5000
+@ghostId = 64b7f0f0f0f0f0f0f0f0f0f0
+
+# Tests for  DELETE /api/v1/products/:id/image  (remove a picture, with no new picture).
+#
+# BEFORE YOU START:
+#   - http/test-image.jpg must exist (see the top of product-images.http)
+#   - Run test A and test B in auth.http, then S1-S4 in products.http (this gives managerToken, adminToken, userToken)
+#   - Access tokens last 15 minutes
+#
+# Look in Cloudinary > Assets > e-commerce-api/products: write down how many files are there before IMGDEL3.
+
+
+### IMGDEL1. Manager creates a product (no image) -> 201, saves imageDelProductId
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "picture test lamp",
+  "price": 4999,
+  "description": "A lamp for testing picture removal.",
+  "category": "office",
+  "company": "ikea",
+  "inventory": 3
+}
+
+> {%
+    client.global.set('imageDelProductId', response.body.product.id)
+%}
+
+### IMGDEL2. Remove the image of a product that has none -> 404 "Product has no image"
+DELETE {{host}}/api/v1/products/{{imageDelProductId}}/image
+Authorization: Bearer {{managerToken}}
+
+### IMGDEL3. Give it an image -> 200 (Cloudinary folder: one more file than before)
+PATCH {{host}}/api/v1/products/{{imageDelProductId}}/image
+Authorization: Bearer {{managerToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="test-image.jpg"
+Content-Type: image/jpeg
+
+< ./test-image.jpg
+--WebAppBoundary--
+
+
+### -------- who may remove, and bad ids --------
+
+### IMGDEL4. No token -> 401
+DELETE {{host}}/api/v1/products/{{imageDelProductId}}/image
+
+### IMGDEL5. Sara (normal user) -> 403
+DELETE {{host}}/api/v1/products/{{imageDelProductId}}/image
+Authorization: Bearer {{userToken}}
+
+### IMGDEL6. A product that does not exist -> 404 "Product not found"
+DELETE {{host}}/api/v1/products/{{ghostId}}/image
+Authorization: Bearer {{managerToken}}
+
+### IMGDEL7. Broken id -> 400 "Invalid value for _id"
+DELETE {{host}}/api/v1/products/abc/image
+Authorization: Bearer {{managerToken}}
+
+
+### -------- the real removal --------
+
+### IMGDEL8. Manager removes the image -> 200, the product in the answer has NO "image" key
+# Cloudinary folder: back to the number of files from before IMGDEL3 (the file was deleted).
+DELETE {{host}}/api/v1/products/{{imageDelProductId}}/image
+Authorization: Bearer {{managerToken}}
+
+### IMGDEL9. Read the product -> 200, still no "image" key
+GET {{host}}/api/v1/products/{{imageDelProductId}}
+
+### IMGDEL10. Remove again -> 404 "Product has no image"
+DELETE {{host}}/api/v1/products/{{imageDelProductId}}/image
+Authorization: Bearer {{managerToken}}
+
+### IMGDEL11. Upload a new image after removing -> 200 with a link (works from a clean state)
+PATCH {{host}}/api/v1/products/{{imageDelProductId}}/image
+Authorization: Bearer {{managerToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="test-image.jpg"
+Content-Type: image/jpeg
+
+< ./test-image.jpg
+--WebAppBoundary--
+
+### IMGDEL12. Admin removes it too -> 200, no "image" key (admins may do everything managers may)
+DELETE {{host}}/api/v1/products/{{imageDelProductId}}/image
+Authorization: Bearer {{adminToken}}
+
+
+### -------- cleanup --------
+
+### IMGDEL13. Admin deletes the test product -> 200 {"msg":"Product removed"}
+# Cloudinary folder: the same number of files as at the start. Nothing is left behind.
+DELETE {{host}}/api/v1/products/{{imageDelProductId}}
+Authorization: Bearer {{adminToken}}

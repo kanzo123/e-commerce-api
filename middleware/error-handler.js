@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import { CustomAPIError } from "../errors/index.js";
+import multer from 'multer';
 
 export default function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err)
@@ -22,6 +23,13 @@ export default function errorHandler(err, req, res, next) {
   } else if (err.type === 'entity.too.large') {
     statusCode = StatusCodes.REQUEST_TOO_LONG;
     msg = 'Request body is too large';
+  } else if (err instanceof multer.MulterError) {
+    // Multer's own limits: file too big, wrong form field name, too many files...
+    statusCode =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? StatusCodes.REQUEST_TOO_LONG
+        : StatusCodes.BAD_REQUEST;
+    msg = err.message;
   } else if (err.code === 11000) {
     statusCode = StatusCodes.CONFLICT
     msg = `Duplicate value entered for ${Object.keys(err.keyValue).join(', ')}, please choose another value`

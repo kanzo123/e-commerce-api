@@ -1,0 +1,173 @@
+@host = http://localhost:5000
+@ghostId = 64b7f0f0f0f0f0f0f0f0f0f0
+
+# Reviews of one product (Part 5, checkpoint 1).
+# Run from top to bottom. Before you start:
+#   1. auth.http: run test A (admin) and then test B (Sara). They save adminToken, userToken, adminId.
+#   2. products.http: run S1 to S4. They save managerToken.
+# Access tokens last 15 minutes. If a test gives 401 when you expect something else, run A and B again.
+# Run the whole file once. A second run starts with a new product, so it works again.
+
+
+### R0. Setup: the manager creates a product for these tests -> 201, saves reviewProductId
+POST {{host}}/api/v1/products
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "name": "review test chair",
+  "price": 15000,
+  "description": "A chair used only to test reviews",
+  "category": "office",
+  "company": "ikea",
+  "inventory": 5
+}
+
+> {%
+  client.global.set('reviewProductId', response.body.product.id)
+%}
+
+### R1. List the reviews of the new product, no token needed -> 200, empty list, total 0
+GET {{host}}/api/v1/products/{{reviewProductId}}/reviews
+
+### R2. The product has no rating yet -> 200, averageRating 0, numOfReviews 0
+GET {{host}}/api/v1/products/{{reviewProductId}}
+
+### R3. Write a review with no token -> 401
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Content-Type: application/json
+
+{ "rating": 5, "title": "Great", "comment": "I like it" }
+
+### R4. A product that does not exist -> 404 "Product not found"
+POST {{host}}/api/v1/products/{{ghostId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 5, "title": "Great", "comment": "I like it" }
+
+### R5. A broken product id -> 400 "Invalid value for _id"
+POST {{host}}/api/v1/products/abc/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 5, "title": "Great", "comment": "I like it" }
+
+### R6. Empty body -> 400 "Please provide rating" (the answer also lists the title and comment messages)
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{}
+
+### R7. Rating 6 -> 400 "Rating must be from 1 to 5"
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 6, "title": "Great", "comment": "I like it" }
+
+### R8. Rating 0 -> 400 "Rating must be from 1 to 5"
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 0, "title": "Great", "comment": "I like it" }
+
+### R9. Rating with a decimal -> 400 "Rating must be a whole number from 1 to 5"
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 3.5, "title": "Great", "comment": "I like it" }
+
+### R10. Rating is a word -> 400 (Mongoose's own message, a bit ugly but safe)
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": "five", "title": "Great", "comment": "I like it" }
+
+### R11. Title is an object -> 400 (same: ugly but safe)
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 5, "title": { "$gt": "" }, "comment": "I like it" }
+
+### R12. Title with 101 letters -> 400 "Title must be at most 100 characters"
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 5, "title": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "comment": "I like it" }
+
+### R13. Sara writes a review. The body also tries to set the writer and the product -> 201, both are ignored (the writer is Sara, the product is the one in the URL)
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "rating": 5,
+  "title": "Great chair",
+  "comment": "Very comfortable, I use it every day",
+  "user": "{{adminId}}",
+  "product": "{{ghostId}}"
+}
+
+> {%
+  client.global.set('saraReviewId', response.body.review.id)
+%}
+
+### R14. The product now shows the rating -> 200, averageRating 5, numOfReviews 1
+GET {{host}}/api/v1/products/{{reviewProductId}}
+
+### R15. Sara writes a second review for the same product -> 409 "You already reviewed this product"
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{ "rating": 1, "title": "Changed my mind", "comment": "Trying to review twice" }
+
+### R16. The manager writes a review (a manager is a normal customer here) -> 201
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "rating": 4, "title": "Good", "comment": "Good for the price" }
+
+> {%
+  client.global.set('managerReviewId', response.body.review.id)
+%}
+
+### R17. The product shows the new average -> 200, averageRating 4.5, numOfReviews 2
+GET {{host}}/api/v1/products/{{reviewProductId}}
+
+### R18. The admin writes a review -> 201
+POST {{host}}/api/v1/products/{{reviewProductId}}/reviews
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "rating": 4, "title": "Fine", "comment": "Does what it should" }
+
+### R19. Average of 5, 4 and 4 is 4.33 -> 200, averageRating 4.3 (not rounded up to 5), numOfReviews 3
+GET {{host}}/api/v1/products/{{reviewProductId}}
+
+### R20. List the reviews -> 200, three reviews, newest first (admin, manager, Sara), each with the writer's name, total 3
+GET {{host}}/api/v1/products/{{reviewProductId}}/reviews
+
+### R21. Second page of two -> 200, one review (Sara's), count 1, total 3, totalPages 2
+GET {{host}}/api/v1/products/{{reviewProductId}}/reviews?limit=2&page=2
+
+### R22. Page 0 -> 400 "page must be a whole number from 1 to 100000"
+GET {{host}}/api/v1/products/{{reviewProductId}}/reviews?page=0
+
+### R23. Reviews of a product that does not exist -> 404 "Product not found"
+GET {{host}}/api/v1/products/{{ghostId}}/reviews
+
+### R24. The admin deletes the product -> 200 "Product removed" (its three reviews are deleted too)
+DELETE {{host}}/api/v1/products/{{reviewProductId}}
+Authorization: Bearer {{adminToken}}
+
+### R25. The reviews of the deleted product -> 404 "Product not found"
+GET {{host}}/api/v1/products/{{reviewProductId}}/reviews

@@ -10,6 +10,7 @@ import {
   updateProductImage,
   deleteProductImage,
 } from '../controllers/products.js';
+import { createReview, getProductReviews } from "../controllers/reviews.js";
 
 const router = express.Router();
 
@@ -26,6 +27,11 @@ router.route('/')
 router.route('/:id/image')
   .patch(...managerOrAdmin, uploadImage, updateProductImage)
   .delete(...managerOrAdmin, deleteProductImage);
+
+// Reviews of one product. Reading is public. Writing needs a login (any role).
+router.route('/:id/reviews')
+  .get(getProductReviews)
+  .post(authenticateUser, createReview)
 
 router.route('/:id')
   .get(getSingleProduct) // Anyone can browse, even without an account

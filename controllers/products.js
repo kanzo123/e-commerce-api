@@ -3,6 +3,7 @@ import { BadRequestError, NotFoundError } from '../errors/index.js';
 import { toProductResponse } from '../utils/product-response.js';
 import { removeImage, storeImage } from "../services/images.js";
 import { getPagination } from "../utils/pagination.js";
+import Review from "../models/Review.js";
 
 // The only fields a manager may send. Everything else (image, averageRating,
 // numOfReviews, createdBy) is set by the server and never read from the body.
@@ -102,7 +103,10 @@ export async function deleteProduct(req, res) {
     throw new NotFoundError('Product not found');
   }
 
-  // The product is gone from the database. Now remove its picture from Cloudinary too.
+  // The product is gone, so its reviews have nothing left to belong to
+  await Review.deleteMany({ product: product._id });
+
+  // Now remove its picture from Cloudinary too.
   if (product.image?.publicId) {
     await removeImage(product.image.publicId);
   }
